@@ -1,7 +1,5 @@
 ; Load Packages
-(ns mini.playground)
-
-; Globals
+(ns mini.playground); Globals
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;                           TO-DO                          ;
@@ -59,18 +57,12 @@
 
 ;ROUND 1
 
-(defn eat [x]
-  (if (< (nth x 0) (nth x 1)) [0 (nth x 1)] [(nth x 0) 0]))
-
-(defn eat2 [zipped]
+(defn slay [zipped]
   (for [x zipped]
     (if (< (nth x 0) (nth x 1)) [0 (nth x 1)] [(nth x 0) 0])
     ))
 
-(defn the_hunt [pred prey]
-  (eat2 (map vector pred prey)))
-
-(the_hunt (new-pop) (new-pop))
+(the_hunt (new-pop) (take 5 (new-pop)))
 
 (defn getpred [all]
   (for [x all]
@@ -87,10 +79,10 @@
 
 ; given a set of prey, shuffle and feed
 
-(defn prey_eat [prey grass]
-  take grass (prey))
+(defn preyeat [prey grass]
+  take grass prey)
 
-;(prey_eat (new-pop) 50)
+(preyeat (new-pop) 50)
 
 (defn grassleft [grass prey_n]
   (if (< grass prey_n) [0] [(- grass prey_n)]))
@@ -152,17 +144,21 @@
                      (the_hunt pred_pop prey_pop)))))
          (shuffle (conj 
                    (breed 
-                    (prey_eat 
+                    (preyeat 
                      (getprey 
                       (the_hunt pred_pop prey_pop)) 
                      grass))
                    (breed
-                    (prey_eat
+                    (preyeat
                      (getprey
                       (the_hunt pred_pop prey_pop))
                      grass))
-                   ))
-         200
+                   )) 
+         (+ 100 50)
          )))))
 
 (evolve 10)
+
+; TODO
+; fix grass
+; figure out execution error and make it to 10 generations

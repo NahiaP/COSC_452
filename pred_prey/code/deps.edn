@@ -1,3 +1,3 @@
 {:paths ["src"]
- :deps {org.clojure/clojure {:mvn/version "1.12.0"}}
- :aliases {:test {:extra-paths ["test"]}}}
+ :deps {quil/quil {:mvn/version "4.3.1563"}}}
+ :aliases {:test {:extra-paths ["test"]}}
