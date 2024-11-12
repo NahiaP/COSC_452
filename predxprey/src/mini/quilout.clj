@@ -7,6 +7,7 @@
 (def predator-count 1)
 (def prey-count 10)
 (def grass-spawn-interval 20)
+(def frame-rate 7)
 
 ;; Define a record to represent an entity with type, speed, x, and y coordinates
 (defrecord Entity [type speed x y])
@@ -27,7 +28,7 @@
 
 ;; Setup function to initialize the Quil sketch
 (defn setup []
-  (q/frame-rate 10)
+  (q/frame-rate frame-rate)
   (q/background 255)
   {:world (random-world)
    :generation 0})
