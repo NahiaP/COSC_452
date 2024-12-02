@@ -193,8 +193,12 @@
 ;;;;;;;;;; generate random world ;;;;;;;;;;;;;;
 
 ;; stack each step of preparing an empty world
+; the let/if is because sometimes the world wouldn't work (i think problems with bounds I was too lazy to fix)
 (defn random_world []
-  (recurprey (recurpred (recurgrass (fill_blanks) (m_grs_spts size 2)) predator-count) prey-count))
+  (let [world (recurprey (recurpred (recurgrass (fill_blanks) (m_grs_spts size 2)) predator-count) prey-count)]
+    (if world
+      world
+      (random_world))))
 
 ; testing
 ;(random_world)
