@@ -243,8 +243,6 @@
 ; first, get a list of the indexes of the creatures that currently exist
 ; 
 
-
-
 ;;;;;;;;;; get list of creatures ;;;;;;;;;;
 
 ;; given a world matrix, return a list of the creatures in it
@@ -344,6 +342,50 @@
 ;(def itsasmallworld [[(Entity. "pred" 0 0 40 false) (Entity. "empty" 0 1 nil true)]])
 ;(movecreat itsasmallworld (Entity. "pred" 0 0 40 false) (Entity. "empty" 0 1 nil true))
 
+;;;;;;;;;; grass-respawning ;;;;;;;;;;
+; randomly spread in one direction
+; subject to change, this seems like the best idea for now
+
+;; given a world matrix, return a list of the grass in it
+(defn grass_in_w [mat]
+  (remove #(false? (:grass %)) (apply concat mat)))
+
+; testing
+;(grass_in_w (random_world))
+
+;; given a world matrix, return the list of grass xs and ys
+; using creat xys works
+(defn w_grass_xys [matrix]
+  (let [li (grass_in_w matrix)]
+    (creats_xys li)))
+
+;; given the list, get xs and ys offset by 1
+; these will be the new xs and ys
+; can actually reuse another helper
+; added a shuffle and take 2 to limit the amount of growth
+(defn w_newgrass [list]
+  (take 2 (shuffle (filter in_bounds (mapv #(wantstogo_helper (rand-int 4) (% 0) (% 1)) list)))))
+
+; testing
+;(w_newgrass [[1 2] [3 4] [0 0]])
+
+;; fill one block with grass
+(defn newgrass [world ent]
+  (replace_ent world (:x ent) (:y ent) (:type ent) (:nextstep ent) true))
+
+;; fill up matrix with the diamond of grass
+(defn recurnewgrass [matrix list]
+  (if (empty? list)
+    matrix
+    (let [newxy (first list)
+          newmat (newgrass matrix (get_ent matrix (newxy 0) (newxy 1)))
+          newsp (rest list)]
+      (if newmat
+        (recurnewgrass newmat newsp) ; dealing with bounds is getting annoying
+        (recurnewgrass matrix newsp)))))
+
+(def newgrass)
+
 ;;;;;;;;;; given a world, move everyone ;;;;;;;;;;
 
 ; get list of creatures
@@ -360,8 +402,8 @@
 
 ;; this function executes the movement with a list of the creatures
 (defn move_with_list [world list]
-  (if (empty? list)
-    world
+  (if (empty? list) ; (recurgrass (fill_blanks) (m_grs_spts size 2))
+    (recurnewgrass world (w_newgrass (w_grass_xys world)))
     (let [curent (get_ent world ((first list)0) ((first list)1)) ; getting entity info
           spotxy (wantstogo curent) ; getting desired direction
           spot (get_ent world (spotxy 0) (spotxy 1))] ; getting what is there
