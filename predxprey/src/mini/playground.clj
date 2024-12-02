@@ -20,12 +20,14 @@
 (def predator-count 3) ; initial
 (def prey-count 16) ; initial
 (def frame-rate 5)
+(def lifespan 50) ; initial
+(def liferegen 5) ; how much eating regenerates
 
 ;; defining a species type
-(defrecord Entity [type x y nextstep grass])
+(defrecord Entity [type x y nextstep grass lifeleft])
 
 ; blue-print for typical entity (used for testing)
-(def miscpred (Entity. "predator" 4 20 (list rand-int 5) true))
+(def miscpred (Entity. "predator" 4 20 (list rand-int 5) true lifespan))
 (print miscpred)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; SPAWN WORLD ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -44,7 +46,7 @@
 (defn fill_blanks []
   (vec (for [x (range size)]
          (vec (for [y (range size)]
-                (Entity. "empty" x y nil false))))))
+                (Entity. "empty" x y nil false nil))))))
 
 ;;;;;;;;;;; helpful fxns ;;;;;;;;;;;
 
@@ -56,8 +58,8 @@
 ;(replace_at fill_blanks 2 1 (Entity. "empty" 400 500 nil))
 
 ;; replace an item at certain index with entity
-(defn replace_ent [mat x y newtype newnextstep grass]
-  (assoc mat x (assoc (get mat x) y (Entity. newtype x y newnextstep grass))))
+(defn replace_ent [mat x y newtype newnextstep grass lifespan]
+  (assoc mat x (assoc (get mat x) y (Entity. newtype x y newnextstep grass lifespan))))
 
 ; testing
 ;(replace_ent (fill_blanks) 2 1 "predator" "HEHEHEHE" false)
@@ -79,13 +81,13 @@
 ;
 ; replace type
 (defn changetype [ent newtype]
-  (Entity. newtype (:x ent) (:y ent) (:nextstep ent) (:grass ent)))
+  (Entity. newtype (:x ent) (:y ent) (:nextstep ent) (:grass ent) (:lifeleft ent)))
 ; testing
 ;(changetype miscpred "testing")
 ;
 ; replace nextstep
 (defn changenextstep [ent newstep]
-  (Entity. (:type ent) (:x ent) (:y ent) newstep (:grass ent)))
+  (Entity. (:type ent) (:x ent) (:y ent) newstep (:grass ent) (:lifeleft ent)))
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -117,7 +119,7 @@
 
 ;; fill one block with grass
 (defn onegrass [matrix xy]
-  (replace_ent matrix (xy 0) (xy 1) "empty" nil true))
+  (replace_ent matrix (xy 0) (xy 1) "empty" nil true nil))
 
 ;; fill up matrix with the diamond of grass
 (defn recurgrass [matrix list]
@@ -150,7 +152,7 @@
         newy (rand-int size)
         check (type&grass_xy matrix newx newy)] ; here we make sure its empty
     (if (= (check 0) "empty")
-      (replace_ent matrix newx newy "predator" (list rand-int 5) (check 1))
+      (replace_ent matrix newx newy "predator" (list rand-int 5) (check 1) lifespan)
       (onepred matrix))))
 
 ; testing
@@ -178,7 +180,7 @@
         newy (rand-int size)
         check (type&grass_xy matrix newx newy)]
     (if (= (check 0) "empty")
-      (replace_ent matrix newx newy "prey" (list rand-int 5) (check 1))
+      (replace_ent matrix newx newy "prey" (list rand-int 5) (check 1) lifespan)
       (oneprey matrix))))
 
 ;; fill up matrix with random prey in random spots
@@ -321,22 +323,42 @@
 ;(wantstogo miscpred)
 
 ;;;;;;;;;; movement helper fxns ;;;;;;;;;;
+; 
 
-;; a pred or prey wants to move into an available spot
-(defn movecreat [world ent new] 
+;; a pred wants to move into an available spot
+(defn movepred [world ent new] 
   (let [oldgrass (:grass ent)] ; don't want to acidentaly move grass around
-    (replace_ent (replace_ent world (:x new) (:y new) (:type ent) (:nextstep ent) (if (= (:type ent) "predator") ; later add eating mechanic
-                                                                                    (:grass new) ; if a pred, grass same | if prey, grass gone
-                                                                                    false)) (:x ent) (:y ent) "empty" nil oldgrass)))
+    (if (pos? (:lifeleft ent))
+      (replace_ent (replace_ent world (:x new) (:y new) "predator" (:nextstep ent) (:grass new) (dec (:lifeleft ent))) (:x ent) (:y ent) "empty" nil oldgrass nil)
+      (replace_ent world (:x ent) (:y ent) "empty" nil (:grass ent) nil))))
 
-;; a prey walks into a spot with a predator and gets eaten
-(defn slayed [world idiot] ; later, add mechanism to extend pred life
-  (replace_ent world (:x idiot) (:y idiot) "empty" nil false)) ; a prey would have eaten the grass
+;; a prey wants to move into an available spot
+; splitting them up makes it easier to deal with grass
+(defn moveprey [world ent new] 
+  (let [oldgrass (:grass ent)] ; don't want to acidentaly move grass around
+    (if (pos? (:lifeleft ent))
+     (replace_ent (replace_ent world (:x new) (:y new) (:type ent) (:nextstep ent) false (if (true? oldgrass) ; check for grass
+                                                                                          (+ liferegen (:lifeleft ent))
+                                                                                          (dec (:lifeleft ent)))) (:x ent) (:y ent) "empty" nil oldgrass nil)
+      (replace_ent world (:x ent) (:y ent) "empty" nil (:grass ent) nil))))
+
+;; a prey walks into a spot with a predator and gets eaten ::::::::::EDIT
+(defn slayed [world idiot pred] ; later, add mechanism to extend pred life
+  (if (pos? (:lifeleft idiot))
+    (replace_ent (replace_ent world (:x pred) (:y pred) "predator" (:nextstep pred) (:grass pred) (+ liferegen (:lifeleft pred))) (:x idiot) (:y idiot) "empty" nil false nil)
+    (replace_ent world (:x idiot) (:y idiot) "empty" nil false nil))) ; a prey would have eaten the grass
 
 ;; a pred walks into a prey and eats it
-(defn slay [world pred prey]
+(defn slay [world pred prey] 
   (let [oldgrass (:grass pred)]
-    (replace_ent (replace_ent world (:x prey) (:y prey) "predator" (:nextstep pred) false) (:x prey) (:y prey) "empty" nil oldgrass))) 
+    (if (pos? (:lifeleft pred))
+     (replace_ent (replace_ent world (:x prey) (:y prey) "predator" (:nextstep pred) false (+ liferegen (:lifeleft pred))) (:x prey) (:y prey) "empty" nil oldgrass nil)
+      (replace_ent world (:x pred) (:y pred) "empty" nil (:grass pred) nil)))) 
+
+(defn createstayed [world ent]
+  (if (pos? (:lifeleft ent))
+    (replace_ent world (:x ent) (:y ent) (:type ent) (:nextstep ent) (:grass ent) (dec (:lifeleft ent)))
+    (replace_ent world (:x ent) (:y ent) "empty" nil (:grass ent) nil)))
 
 ; testing
 ;(def itsasmallworld [[(Entity. "pred" 0 0 40 false) (Entity. "empty" 0 1 nil true)]])
@@ -371,7 +393,7 @@
 
 ;; fill one block with grass
 (defn newgrass [world ent]
-  (replace_ent world (:x ent) (:y ent) (:type ent) (:nextstep ent) true))
+  (replace_ent world (:x ent) (:y ent) (:type ent) (:nextstep ent) true (:lifeleft ent)))
 
 ;; fill up matrix with the diamond of grass
 (defn recurnewgrass [matrix list]
@@ -383,8 +405,6 @@
       (if newmat
         (recurnewgrass newmat newsp) ; dealing with bounds is getting annoying
         (recurnewgrass matrix newsp)))))
-
-(def newgrass)
 
 ;;;;;;;;;; given a world, move everyone ;;;;;;;;;;
 
@@ -409,17 +429,19 @@
           spot (get_ent world (spotxy 0) (spotxy 1))] ; getting what is there
       (cond
         (= (:type spot) "empty") 
-        (move_with_list (movecreat world curent spot) (rest list)) ; [world ent new] 
-        (= (:type spot) "prey")
-        (cond 
+        (if
           (= (:type curent) "prey") ; pred or prey
-          (move_with_list world (rest list))
-          (= (:type curent) "predator")
+          (move_with_list (moveprey world curent spot) (rest list)) ; [world ent new] 
+          (move_with_list (movepred world curent spot) (rest list))) ; [world ent new] 
+        (= (:type spot) "prey")
+        (if 
+          (= (:type curent) "prey") ; pred or prey
+          (move_with_list (createstayed world curent) (rest list))
           (move_with_list (slay world curent spot) (rest list)))
         (= (:type spot) "predator")
         (if (= (:type curent) "predator") ; pred or prey
-          (move_with_list world (rest list))
-          (move_with_list (slayed world curent) (rest list))
+          (move_with_list (createstayed world curent) (rest list))
+          (move_with_list (slayed world curent spot) (rest list))
           )))))
 
 ;; given a world, get all the creatures, shuffle the order of the list, and call move_with_list
