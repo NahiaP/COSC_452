@@ -16,12 +16,12 @@
 ; next steps: N S E W F(freeze) -> 0 1 2 3 4 (i dont feel like fixing it yet)
 
 ;; Define the size of the world and other parameters
-(def size 30)
+(def size 40)
 (def predator-count 3) ; initial
 (def prey-count 16) ; initial
 (def frame-rate 5)
-(def lifespan 50) ; initial
-(def liferegen 5) ; how much eating regenerates
+(def lifespan 5000) ; initial
+(def liferegen 10) ; how much eating regenerates
 
 ;; defining a species type
 (defrecord Entity [type x y nextstep grass lifeleft])
@@ -214,10 +214,11 @@
   (q/frame-rate frame-rate)
   (q/background 255)
   {:world (random_world)
+   :frame 0
    :generation 0})
 
 ;; Function to draw the world
-(defn draw-world [world]
+(defn draw-world [world frame gen]
   (q/background 255)
   (doseq [x (range size)
           y (range size)]
@@ -228,14 +229,20 @@
                   (= (:type entity) "prey") (q/color 0 0 200) ; Blue for prey
                   (:grass entity) (q/color 0 200 0) ; else, Green for grass
                   :else (q/color 255))) ; else, default color
-        (q/rect (* (:x entity) 10) (* (:y entity) 10) 10 10)))))
+        (q/rect (* (:x entity) 10) (* (:y entity) 10) 10 10)))
+    )
+  (q/fill 122 63 0)
+  (q/text (str frame) 50 389)
+  (q/text "frame:" 15 389)
+  (q/text (str gen) 370 389)
+  (q/text "gen:" 345 389))
 
 ; testing that the setup works (no movement yet)
 ;(q/defsketch life
 ;  :host "host"
 ;  :size [(* size 10) (* size 10)]
 ;  :setup setup
-;  :draw (fn [state] (draw-world (:world state)))
+;  :draw (fn [state] (draw-world (:world state) (:frame state) (:generation state)))
 ;  :middleware [m/fun-mode])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; NEXT STEP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -321,6 +328,37 @@
 
 ; testing
 ;(wantstogo miscpred)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; MOVEMENT GENOME ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ;;;;;;;;;; movement helper fxns ;;;;;;;;;;
 ; 
@@ -452,9 +490,10 @@
 ;; applying the steps forward on the state item
 (defn steps-forward [state]
   (let [world (:world state)
+        frame (:frame state)
         generation (:generation state)
         new-world (move_in_world world)]
-    {:world new-world :generation (inc generation)}))
+    {:world new-world :frame (inc frame) :generation generation}))
 
 ; testing
 (q/defsketch life
@@ -462,7 +501,7 @@
   :size [(* size 10) (* size 10)]
   :setup setup
   :update (fn [state] (steps-forward state))
-  :draw (fn [state] (draw-world (:world state)))
+  :draw (fn [state] (draw-world (:world state) (:frame state) (:generation state)))
   :middleware [m/fun-mode])
 
 
