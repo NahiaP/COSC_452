@@ -4,9 +4,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; TO DO ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
-; Breeding fxn (after certain amount of frames, call this to breed them)
-; Update the quil step-forward function to call breeding when applicable
-;       (after calling breeding, it should call the regular movement again)
+; clean comments
+; Evolution
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; INDEX ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; 
@@ -449,7 +448,6 @@
 ; get 2 lists (all preds and all prey)
 ; in each list:
 ;    shuffle
-;    filter for only ones that did eat
 ;    pair them off
 ;    for each pair, create 1 new animal (this number should be adjustable)
 ;        for p, the animal should have a random value between each p
@@ -644,6 +642,37 @@
   :update (fn [state] (steps-forward state))
   :draw (fn [state] (draw-world (:world state) (:frame state) (:generation state)))
   :middleware [m/fun-mode])
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; alternative
+; 
+;; this fxn executes the movement with a list of the creatures
+(defn move_with_list2 [world list]
+  (if (empty? list) ; (recurgrass (fill_blanks) (m_grs_spts size 2))
+    (recurnewgrass world (w_newgrass (w_grass_xys world)))
+    (let [curent (get_ent world ((first list) 0) ((first list) 1)) ; getting entity info
+          alive (:lifeleft curent)] ; check if it's alive first
+      (if (= alive 0) ; if dead, kill it
+      (move_with_list2 (replace_ent world (:x curent) (:y curent) "empty" nil (:grass curent) nil) (rest list))
+      (let [spotxy (wantstogo curent world) ; getting desired direction
+            spot (get_ent world (spotxy 0) (spotxy 1))] ; getting what is there
+            (cond
+              (= (:type spot) "empty")
+              (if
+               (= (:type curent) "prey") ; pred or prey
+                (move_with_list2 (moveprey world curent spot) (rest list)) ; [world ent new] 
+                (move_with_list2 (movepred world curent spot) (rest list))) ; [world ent new] 
+              (= (:type spot) "prey")
+              (if
+               (= (:type curent) "prey") ; pred or prey
+                (move_with_list2 (createstayed world curent) (rest list))
+                (move_with_list2 (slay world curent spot) (rest list)))
+              (= (:type spot) "predator")
+              (if (= (:type curent) "predator") ; pred or prey
+                (move_with_list2 (createstayed world curent) (rest list))
+                (move_with_list2 (slayed world curent spot) (rest list)))))))))
+
 
 
 
