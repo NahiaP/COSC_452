@@ -4,16 +4,39 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; TO DO ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
-; Step happens for 100 steps
-; After step, return list
-; Loop 3 times, breed inbetween
+; clean comments
+; Evolution
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Initializing ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; INDEX ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; 
+; A. Initializing
+; B. Movement Genome
+;    B.1. genome creation
+;    B.2. determine closest creature
+;    B.3. get lists of creature xys
+;    B.4. block you want to step towards
+;    B.5. helpful fxns for determining direction
+;    B.6. determining direction
+; C. Spawn World
+;    C.1. create empty matrix
+;    C.2. helpful fxns
+;    C.3. adding grass
+;    C.4. randomly replace with some preds
+;    C.5. randomly replace with some prey
+;    C.6. generate random world
+; D. Quil Setup
+; E. Next Step
+;    E.1. movement decisions
+;    E.2. movement helper fxns
+;    E.3. grass-respawning
+;    E.4. given a world, move everyone
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; A. INITIALIZING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ; Global variables and creation of species
 ; 
 ; types: "predator" "prey" "grass" "empty"
-; next steps: N S E W F(freeze) -> 0 1 2 3 4 
+; next steps: N E S W F(freeze) -> 0 1 2 3 4 
 
 ;; Define the size of the world and other parameters
 (def size 40)
@@ -22,6 +45,7 @@
 (def frame-rate 5)
 (def lifespan 5000) ; initial
 (def liferegen 10) ; how much eating regenerates
+(def middlepoints (vector (int (/ size 2)) (int (/ size 2)))) ; rounding sucks so just go to floor
 
 ;; defining a species type
 (defrecord Entity [type x y nextstep grass lifeleft])
@@ -30,7 +54,7 @@
 (def miscpred (Entity. "predator" 4 20 (list rand-int 5) true lifespan))
 (print miscpred)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; MOVEMENT GENOME ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; B. MOVEMENT GENOME ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ; figuring out how the fuck angles work
 ;
@@ -55,10 +79,22 @@
 ; then, add all the vectors and get resulting vector
 ; then, get the angle of that final vector and translate that into the final direction
 ;
-; also, need a function to generate the genome
-; also, need a function that given an ent, calculate direction
+; also, need a fxn to generate the genome
+; also, need a fxn that given an ent, calculate direction
 
-;; Function to calculate the Euclidean distance between two entities
+;;;;;;;;;; B.1. genome creation ;;;;;;;;;;;;;;
+
+;; generate a random movement genome
+; reminder: 
+; [[p1 d1] [p2 d2] [p3 d3] [p4 d4] [p5 d5]]
+; p can be 0-5
+; d can be 0 or 1
+(defn random_move_gene []
+  [[(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)]])
+
+;;;;;;;;;; B.2. determine closest creature ;;;;;;;;;;;;;;
+
+;; Fxn to calculate the Euclidean distance between two entities
 (defn distance [xy1 xy2]
   (Math/sqrt (+ (Math/pow (- (xy1 0) (xy2 0)) 2)
                 (Math/pow (- (xy1 1) (xy2 1)) 2))))
@@ -67,26 +103,19 @@
 (defn get_closest [center others]
   ((first (sort-by first (map vector (map #(distance center %) others) others))) 1))
 
-;;;;;;;;;; get list of creatures ;;;;;;;;;;
+;;;;;;;;;; B.3. get lists of creature xys ;;;;;;;;;;
 
 ;; given a world matrix, return a list of the creatures in it
 (defn creats_in_w [mat]
   (remove #(= (:type %) "empty") (apply concat mat)))
 
-; testing
-;(creats_in_w (random_world))
-
 ;; given a world matrix, return a list of one type of creatures in it
 (defn spec_creats_in_w [mat type]
   (filter #(= (:type %) type) (apply concat mat)))
 
-
-;; given this list, get the xs and ys
+;; given a list of creatures, get the xs and ys
 (defn creats_xys [list]
   (map vector (map :x list) (map :y list)))
-
-; testing
-;(creats_xys (list miscpred))
 
 ;; given a world matrix, return the list of creature xs and ys
 (defn w_creat_xys [matrix]
@@ -107,6 +136,8 @@
 (defn w_grass_xys [matrix]
   (let [li (grass_in_w matrix)]
     (creats_xys li)))
+
+;;;;;;;;;; B.4. block you want to step towards ;;;;;;;;;;
 
 ;; Find nearest same species
 ; given a species, get a list of current species/location on the map
@@ -138,10 +169,33 @@
         others (w_grass_xys world)]
     (get_closest my_xy others)))
 
+;; give a random index to step to 
+(defn rand_dir [x y]
+  (let [dir (rand-int 5)]
+  (cond
+  (= 0 dir)
+  [x (+ y 1)]
+  (= 1 dir)
+  [(+ x 1) y]
+  (= 2 dir)
+  [x (- y 1)]
+  (= 3 dir)
+  [(- x 1) y]
+  (= 4 dir)
+  [x y]
+  )))
+
+;;;;;;;;;; B.5. helpful fxns for determining direction ;;;;;;;;;;
+
 ;; Given 2 points, give me the vector from one to the other
 ; from central to outside
-(defn give_vector [center, other]
+(defn give_vector [center other]
   [(- (other 0) (center 0)) (- (other 1) (center 1))])
+
+;; Given ent point and list of points, generate the vectors for every point
+(defn get_all_the_vectors [list entxy]
+  (map #(give_vector entxy %) list)
+  )
 
 ;; given a vector, normalize it
 (defn normalize_vector [vec]
@@ -152,10 +206,20 @@
       [0 0]
       [(/ x mag) (/ y mag)])))
 
+;; given a list of vectors, normaliz all of them
+(defn norm_vec_list [list]
+  (map normalize_vector list))
+
 ;; given a vector, flip the direction
 ; determines if you go towards or away from this thing
 (defn flip_vector [vec]
   [(- 0 (vec 0)) (- 0 (vec 1))])
+
+;; given a vector and a 0 or 1, flip any 1s
+(defn list_flipper [vec flip]
+  (if (= flip 0)
+    vec
+    (flip_vector vec)))
 
 ;; given a vector, magnify it
 (defn mag_vector [vec factor]
@@ -168,6 +232,8 @@
 (defn round-to-hund [n] ;; credit to chatgpt for coming up with this one, ate that up
   (/ (Math/round (* n 100)) 100.0))
 
+;;;;;;;;;; B.6. determining direction ;;;;;;;;;;
+
 ;; given a vector (preferably, the final one) return the direction it indicates
 ; next steps: N S E W F(freeze) -> 0 1 2 3 4 
 ; note: it's hard to get 0, so if the magnitude is small enough that becomes 0
@@ -176,7 +242,7 @@
   (let [x (vec 0)
         y (vec 1)
         mag (Math/sqrt (+ (* x x) (* y y)))]
-    (if (< 2 mag) ; if the magnitude of the total sum is smaller than 2, stay in the same spot
+    (if (< mag 2) ; if the magnitude of the total sum is smaller than 2, stay in the same spot
       4
       (let [rad_angle (round-to-hund (Math/atan2 y x))]
         (cond
@@ -200,27 +266,20 @@
           1
           )))))
 
-;; generate a random movement genome
-; reminder: 
-; [[p1 d1] [p2 d2] [p3 d3] [p4 d4] [p5 d5]]
-; p can be 0-5
-; d can be 0 or 1
-(defn random_move_gene []
-  [[(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)]])
-
-; testing
-;(random_move_gene)
-
-;; given am ent, calculate desired direction
-(defn eval_dir [ent] 
+;; given an ent, calculate desired direction
+(defn eval_dir [world ent] 
   (let [move_genome (:nextstep ent)
-        ]
+        nearest_same (nearest_same world ent)
+        nearest_other (nearest_diff world ent)
+        nearest_grass (nearest_grass world ent)
+        random (rand_dir (:x ent) (:y ent))
+        list_of_points [middlepoints nearest_same nearest_other nearest_grass random]
+        list_of_flips (mapv second move_genome)
+        list_of_mags (mapv first move_genome)]
+        (final_direction (sum_vec_list (mapv mag_vector (mapv list_flipper (norm_vec_list (get_all_the_vectors list_of_points [(:x ent) (:y ent)])) list_of_flips) list_of_mags)))
     ))
 
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; SPAWN WORLD ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; C. SPAWN WORLD ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ; to set up the matrix that is the world
 ; 
@@ -230,7 +289,7 @@
 ; third, randomly change some empty spots into predators
 ; fourth, randomly change some empty spots into prey
 
-;;;;;;;;;; create empty matrix ;;;;;;;;;;;;;;
+;;;;;;;;;; C.1. create empty matrix ;;;;;;;;;;;;;;
 
 ;; spawn empty cells
 (defn fill_blanks []
@@ -238,50 +297,30 @@
          (vec (for [y (range size)]
                 (Entity. "empty" x y nil false nil))))))
 
-;;;;;;;;;;; helpful fxns ;;;;;;;;;;;
-
-; replace an item at certain index
-(defn replace_at [mat x y insert]
-  (assoc mat x (assoc (get mat x) y insert)))
-
-; testing
-;(replace_at fill_blanks 2 1 (Entity. "empty" 400 500 nil))
+;;;;;;;;;;; C.2. helpful fxns ;;;;;;;;;;;
 
 ;; replace an item at certain index with entity
 (defn replace_ent [mat x y newtype newnextstep grass lifespan]
   (assoc mat x (assoc (get mat x) y (Entity. newtype x y newnextstep grass lifespan))))
 
-; testing
-;(replace_ent (fill_blanks) 2 1 "predator" "HEHEHEHE" false)
-;(def whatdidibreak (replace_ent fill_blanks 2 1 "predator" "HEHEHEHE"))
-;(replace_ent whatdidibreak 2 2 "predator" "HEHEHEHE")
-
 ;; get entity at index x y
 (defn get_ent [matrix x y]
   ((matrix x) y))
 
-; testing
-;(get_ent (fill_blanks) 0 0)
+;; checking if xy is in bounds 
+; bounds are 0 - (size-1)
+(defn in_bounds [xy]
+  (if (< -1 (xy 0))
+    (if (< (xy 0) size)
+      (if (< -1 (xy 1))
+        (if (< (xy 1) size)
+          true
+          false)
+        false)
+      false)
+    false))
 
-;;;;;;;;;;; unused but i didnt want to delete it yet
-;
-; get type at x y
-(defn type_xy [mat x y]
-  (:type ((mat x) y)))
-;
-; replace type
-(defn changetype [ent newtype]
-  (Entity. newtype (:x ent) (:y ent) (:nextstep ent) (:grass ent) (:lifeleft ent)))
-; testing
-;(changetype miscpred "testing")
-;
-; replace nextstep
-(defn changenextstep [ent newstep]
-  (Entity. (:type ent) (:x ent) (:y ent) newstep (:grass ent) (:lifeleft ent)))
-;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;; end of helpful fxns ;;;;;;;;;;;
+;;;;;;;;;;; C.3. adding grass ;;;;;;;;;;;
 
 ;; pick out some random instances to become grass
 ; in a diamond shape around 1 center
@@ -289,27 +328,20 @@
 (defn diamond [x y]
   [[x y] [(+ 1 x) y] [x (+ 1 y)] [(+ 1 x) (+ 1 y)] [(+ 2 x) y] [x (+ 2 y)] [(- x 1) (- y 1)] [x (- y 1)] [x (- y 2)] [(+ 1 x) (- y 1)] [(- x 1) (+ y 1)] [(- x 1) y] [(- x 2) y]])
 
-; testing
-;(diamond 1 1)
-
 ;; random chunk of grass that fits in size-constraints
 ; the constraints acutally suck, so they are reinforced later
 (defn grs_spts [s]
   (diamond (rand-int (+ s 2)) (rand-int (+ s 2))))
 
-; testing
-;(grs_spts 20)
-
 ;; specify how many chunks to add in world
 (defn m_grs_spts [limit amount]
   (distinct (apply concat (for [i (range amount)] (grs_spts limit)))))
 
-; testing
-;(m_grs_spts 10 8)
-
 ;; fill one block with grass
 (defn onegrass [matrix xy]
-  (replace_ent matrix (xy 0) (xy 1) "empty" nil true nil))
+  (if (in_bounds xy)
+    (replace_ent matrix (xy 0) (xy 1) "empty" nil true nil))
+    matrix)
 
 ;; fill up matrix with the diamond of grass
 (defn recurgrass [matrix list]
@@ -317,15 +349,9 @@
     matrix
     (let [newmat (onegrass matrix (first list))
           newsp (rest list)]
-      (if newmat
-        (recurgrass newmat newsp) ; dealing with bounds is getting annoying
-        (recurgrass matrix newsp)))))
+      (recurgrass newmat newsp)))) ; dealing with bounds is getting annoying
 
-; testing
-;(recurgrass (fill_blanks) [[3 13] [4 13] [3 14]])
-;(recurgrass (fill_blanks) (grs_spts size))
-
-;;;;;;;;;; randomly replace with some preds ;;;;;;;;;;;;;;
+;;;;;;;;;; C.4. randomly replace with some preds ;;;;;;;;;;;;;;
 
 ;; get what is in the cell and if it has grass
 ; only allowed to place a new predator if the spot is empty
@@ -333,20 +359,14 @@
 (defn type&grass_xy [mat x y]
   [(:type ((mat x) y)) (:grass ((mat x) y))])
 
-; testing
-;((type&grass_xy (fill_blanks) 0 1) 0)
-
 ;; add one new predator
 (defn onepred [matrix]
   (let [newx (rand-int size)
         newy (rand-int size)
         check (type&grass_xy matrix newx newy)] ; here we make sure its empty
     (if (= (check 0) "empty")
-      (replace_ent matrix newx newy "predator" (list rand-int 5) (check 1) lifespan)
+      (replace_ent matrix newx newy "predator" (random_move_gene) (check 1) lifespan)
       (onepred matrix))))
-
-; testing
-;(onepred (fill_blanks))
 
 ;; fill up matrix with random predators in random spots
 ; limited to the pre-set pred count
@@ -357,11 +377,7 @@
           newcount (dec count)]
       (recurpred newmat newcount))))
 
-; testing
-;(recurpred (fill_blanks) predator-count)
-;(recurpred (recurgrass (fill_blanks) (grs_spts size)) predator-count)
-
-;;;;;;;;;; randomly replace with some prey ;;;;;;;;;;;;;;
+;;;;;;;;;; C.5. randomly replace with some prey ;;;;;;;;;;;;;;
 ; works exactly the same as pred
 
 ;; add one new prey
@@ -370,7 +386,7 @@
         newy (rand-int size)
         check (type&grass_xy matrix newx newy)]
     (if (= (check 0) "empty")
-      (replace_ent matrix newx newy "prey" (list rand-int 5) (check 1) lifespan)
+      (replace_ent matrix newx newy "prey" (random_move_gene) (check 1) lifespan)
       (oneprey matrix))))
 
 ;; fill up matrix with random prey in random spots
@@ -382,7 +398,7 @@
           newcount (dec count)]
       (recurprey newmat newcount))))
 
-;;;;;;;;;; generate random world ;;;;;;;;;;;;;;
+;;;;;;;;;; C.6. generate random world ;;;;;;;;;;;;;;
 
 ;; stack each step of preparing an empty world
 ; the let/if is because sometimes the world wouldn't work (i think problems with bounds I was too lazy to fix)
@@ -392,14 +408,11 @@
       world
       (random_world))))
 
-; testing
-;(random_world)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; QUIL SETUP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; D. QUIL SETUP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ; I actually don't know how any of this works
 
-;; Setup function to initialize the Quil sketch
+;; Setup fxn to initialize the Quil sketch
 (defn setup []
   (q/frame-rate frame-rate)
   (q/background 255)
@@ -407,7 +420,7 @@
    :frame 0
    :generation 0})
 
-;; Function to draw the world
+;; Fxn to draw the world
 (defn draw-world [world frame gen]
   (q/background 255)
   (doseq [x (range size)
@@ -427,22 +440,14 @@
   (q/text (str gen) 370 389)
   (q/text "gen:" 345 389))
 
-; testing that the setup works (no movement yet)
-;(q/defsketch life
-;  :host "host"
-;  :size [(* size 10) (* size 10)]
-;  :setup setup
-;  :draw (fn [state] (draw-world (:world state) (:frame state) (:generation state)))
-;  :middleware [m/fun-mode])
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; NEXT STEP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; E. NEXT STEP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ; take a world and move every creature
 ; 
 ; first, get a list of the indexes of the creatures that currently exist
 ; 
 
-;;;;;;;;;; movement decisions ;;;;;;;;;;
+;;;;;;;;;; E.1. movement decisions ;;;;;;;;;;
 
 ; if 0, y+1
 ; if 1, x+1
@@ -465,26 +470,10 @@
     [x y]
     ))
 
-; testing
-;(wantstogo_helper 4 20 20)
-
-;; checking if the next step is in bounds 
-; bounds are 0 - (size-1)
-(defn in_bounds [xy]
-  (if (< -1 (xy 0))
-    (if (< (xy 0) size)
-      (if (< -1 (xy 1))
-        (if (< (xy 1) size)
-          true
-          false)
-        false)
-      false)
-    false))
-
-;; given an entity, evaluate it's nextstep function to determin the direction it wants to go it
+;; given an entity, evaluate it's nextstep fxn to determin the direction it wants to go it
 ; then return what the idex is in that direction
-(defn wantstogo [ent]
-  (let [dir (eval (:nextstep ent))
+(defn wantstogo [ent world]
+  (let [dir (eval_dir world ent)
         here (wantstogo_helper dir (:x ent) (:y ent))]
     ; cheking in bounds, else stay in spot
     (if (in_bounds here)
@@ -492,11 +481,7 @@
       [(:x ent) (:y ent)])
     ))
 
-; testing
-;(wantstogo miscpred)
-
-;;;;;;;;;; movement helper fxns ;;;;;;;;;;
-; 
+;;;;;;;;;; E.2. movement helper fxns ;;;;;;;;;;
 
 ;; a pred wants to move into an available spot
 (defn movepred [world ent new] 
@@ -533,11 +518,7 @@
     (replace_ent world (:x ent) (:y ent) (:type ent) (:nextstep ent) (:grass ent) (dec (:lifeleft ent)))
     (replace_ent world (:x ent) (:y ent) "empty" nil (:grass ent) nil)))
 
-; testing
-;(def itsasmallworld [[(Entity. "pred" 0 0 40 false) (Entity. "empty" 0 1 nil true)]])
-;(movecreat itsasmallworld (Entity. "pred" 0 0 40 false) (Entity. "empty" 0 1 nil true))
-
-;;;;;;;;;; grass-respawning ;;;;;;;;;;
+;;;;;;;;;; E.3. grass-respawning ;;;;;;;;;;
 ; randomly spread in one direction
 ; subject to change, this seems like the best idea for now
 
@@ -547,9 +528,6 @@
 ; added a shuffle and take 2 to limit the amount of growth
 (defn w_newgrass [list]
   (take 2 (shuffle (filter in_bounds (mapv #(wantstogo_helper (rand-int 4) (% 0) (% 1)) list)))))
-
-; testing
-;(w_newgrass [[1 2] [3 4] [0 0]])
 
 ;; fill one block with grass
 (defn newgrass [world ent]
@@ -566,8 +544,8 @@
         (recurnewgrass newmat newsp) ; dealing with bounds is getting annoying
         (recurnewgrass matrix newsp)))))
 
-;;;;;;;;;; given a world, move everyone ;;;;;;;;;;
-
+;;;;;;;;;; E.4. given a world, move everyone ;;;;;;;;;;
+;
 ; get list of creatures
 ; shuffle it (equal chance to step first)
 ; for each creature, eval which direction it wants to go in (0 1 2 3 4)
@@ -580,12 +558,12 @@
     ; if creature is prey, it dies
     ; if creature is pred, reroll
 
-;; this function executes the movement with a list of the creatures
+;; this fxn executes the movement with a list of the creatures
 (defn move_with_list [world list]
   (if (empty? list) ; (recurgrass (fill_blanks) (m_grs_spts size 2))
     (recurnewgrass world (w_newgrass (w_grass_xys world)))
     (let [curent (get_ent world ((first list)0) ((first list)1)) ; getting entity info
-          spotxy (wantstogo curent) ; getting desired direction
+          spotxy (wantstogo curent world) ; getting desired direction
           spot (get_ent world (spotxy 0) (spotxy 1))] ; getting what is there
       (cond
         (= (:type spot) "empty") 
@@ -616,18 +594,6 @@
         generation (:generation state)
         new-world (move_in_world world)]
     {:world new-world :frame (inc frame) :generation generation}))
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
