@@ -1,4 +1,4 @@
-(ns mini.quilout
+(ns archive.gh-quilout
   (:require [quil.core :as q]
             [quil.middleware :as m]))
 
