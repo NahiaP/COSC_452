@@ -25,11 +25,14 @@
 ;    C.5. randomly replace with some prey
 ;    C.6. generate random world
 ; D. Quil Setup
-; E. Next Step
-;    E.1. movement decisions
-;    E.2. movement helper fxns
-;    E.3. grass-respawning
-;    E.4. given a world, move everyone
+; E. Breeding                        -> to-do
+; F. Next Step
+;    F.1. movement decisions
+;    F.2. movement helper fxns
+;    F.3. grass-respawning
+;    F.4. next generation            -> to-do                           
+;    F.5. given a world, move everyone
+; G. Testing
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; A. INITIALIZING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -43,8 +46,8 @@
 (def predator-count 3) ; initial
 (def prey-count 16) ; initial
 (def frame-rate 5)
-(def lifespan 5000) ; initial
-(def liferegen 10) ; how much eating regenerates
+(def lifespan 100) ; initial
+(def liferegen 50) ; how much eating regenerates
 (def middlepoints (vector (int (/ size 2)) (int (/ size 2)))) ; rounding sucks so just go to floor
 
 ;; defining a species type
@@ -340,8 +343,8 @@
 ;; fill one block with grass
 (defn onegrass [matrix xy]
   (if (in_bounds xy)
-    (replace_ent matrix (xy 0) (xy 1) "empty" nil true nil))
-    matrix)
+    (replace_ent matrix (xy 0) (xy 1) "empty" nil true nil)
+    matrix))
 
 ;; fill up matrix with the diamond of grass
 (defn recurgrass [matrix list]
@@ -440,14 +443,36 @@
   (q/text (str gen) 370 389)
   (q/text "gen:" 345 389))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; E. NEXT STEP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; E. BREEDING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; F. NEXT STEP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ; take a world and move every creature
 ; 
 ; first, get a list of the indexes of the creatures that currently exist
 ; 
 
-;;;;;;;;;; E.1. movement decisions ;;;;;;;;;;
+;;;;;;;;;; F.1. movement decisions ;;;;;;;;;;
 
 ; if 0, y+1
 ; if 1, x+1
@@ -481,7 +506,7 @@
       [(:x ent) (:y ent)])
     ))
 
-;;;;;;;;;; E.2. movement helper fxns ;;;;;;;;;;
+;;;;;;;;;; F.2. movement helper fxns ;;;;;;;;;;
 
 ;; a pred wants to move into an available spot
 (defn movepred [world ent new] 
@@ -500,7 +525,7 @@
                                                                                           (dec (:lifeleft ent)))) (:x ent) (:y ent) "empty" nil oldgrass nil)
       (replace_ent world (:x ent) (:y ent) "empty" nil (:grass ent) nil))))
 
-;; a prey walks into a spot with a predator and gets eaten ::::::::::EDIT
+;; a prey walks into a spot with a predator and gets eaten
 (defn slayed [world idiot pred] ; later, add mechanism to extend pred life
   (if (pos? (:lifeleft idiot))
     (replace_ent (replace_ent world (:x pred) (:y pred) "predator" (:nextstep pred) (:grass pred) (+ liferegen (:lifeleft pred))) (:x idiot) (:y idiot) "empty" nil false nil)
@@ -518,7 +543,7 @@
     (replace_ent world (:x ent) (:y ent) (:type ent) (:nextstep ent) (:grass ent) (dec (:lifeleft ent)))
     (replace_ent world (:x ent) (:y ent) "empty" nil (:grass ent) nil)))
 
-;;;;;;;;;; E.3. grass-respawning ;;;;;;;;;;
+;;;;;;;;;; F.3. grass-respawning ;;;;;;;;;;
 ; randomly spread in one direction
 ; subject to change, this seems like the best idea for now
 
@@ -544,7 +569,7 @@
         (recurnewgrass newmat newsp) ; dealing with bounds is getting annoying
         (recurnewgrass matrix newsp)))))
 
-;;;;;;;;;; E.4. given a world, move everyone ;;;;;;;;;;
+;;;;;;;;;; F.5. given a world, move everyone ;;;;;;;;;;
 ;
 ; get list of creatures
 ; shuffle it (equal chance to step first)
@@ -595,12 +620,8 @@
         new-world (move_in_world world)]
     {:world new-world :frame (inc frame) :generation generation}))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; G. TESTING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-
-
-
-; testing
 (q/defsketch life
   :host "host"
   :size [(* size 10) (* size 10)]
