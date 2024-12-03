@@ -13,7 +13,7 @@
 ; Global variables and creation of species
 ; 
 ; types: "predator" "prey" "grass" "empty"
-; next steps: N S E W F(freeze) -> 0 1 2 3 4 (i dont feel like fixing it yet)
+; next steps: N S E W F(freeze) -> 0 1 2 3 4 
 
 ;; Define the size of the world and other parameters
 (def size 40)
@@ -29,6 +29,196 @@
 ; blue-print for typical entity (used for testing)
 (def miscpred (Entity. "predator" 4 20 (list rand-int 5) true lifespan))
 (print miscpred)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; MOVEMENT GENOME ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; figuring out how the fuck angles work
+;
+; A genome should be:
+; [[p1 d1] [p2 d2] [p3 d3] [p4 d4] [p5 d5]]
+;
+; Here, p can be 0-5
+;       d can be 0 or 1
+; 
+; Evaluated as:
+; Direction ~   p1 * ([center] + (d1 * pi))
+;             + p2 * ([nearest same species] + (d2 * pi))
+;             + p3 * ([nearest diff species] + (d3 * pi))
+;             + p4 * ([nearest grass] + (d4 * pi))
+;             + p5 * ([random] + (d5 * pi))
+; 
+; fist, find the thing being considered 
+; then, get a vector of the object to that thing
+; then, normalize all the vectors to 0-1
+; then, if applicable flip the vector to go away instead of towards that consiedration
+; then, magnify the vectors by the ps (increase weight as applicable)
+; then, add all the vectors and get resulting vector
+; then, get the angle of that final vector and translate that into the final direction
+;
+; also, need a function to generate the genome
+; also, need a function that given an ent, calculate direction
+
+;; Function to calculate the Euclidean distance between two entities
+(defn distance [xy1 xy2]
+  (Math/sqrt (+ (Math/pow (- (xy1 0) (xy2 0)) 2)
+                (Math/pow (- (xy1 1) (xy2 1)) 2))))
+
+;; given a ent xy and a list of other xys, return the closest xy
+(defn get_closest [center others]
+  ((first (sort-by first (map vector (map #(distance center %) others) others))) 1))
+
+;;;;;;;;;; get list of creatures ;;;;;;;;;;
+
+;; given a world matrix, return a list of the creatures in it
+(defn creats_in_w [mat]
+  (remove #(= (:type %) "empty") (apply concat mat)))
+
+; testing
+;(creats_in_w (random_world))
+
+;; given a world matrix, return a list of one type of creatures in it
+(defn spec_creats_in_w [mat type]
+  (filter #(= (:type %) type) (apply concat mat)))
+
+
+;; given this list, get the xs and ys
+(defn creats_xys [list]
+  (map vector (map :x list) (map :y list)))
+
+; testing
+;(creats_xys (list miscpred))
+
+;; given a world matrix, return the list of creature xs and ys
+(defn w_creat_xys [matrix]
+  (let [li (creats_in_w matrix)]
+    (creats_xys li)))
+
+;; given a world matrix, return the list of a type of speceis xs and ys
+(defn w_spect_creat_xys [matrix type]
+  (let [li (spec_creats_in_w matrix type)]
+    (creats_xys li)))
+
+;; given a world matrix, return a list of the grass in it
+(defn grass_in_w [mat]
+  (remove #(false? (:grass %)) (apply concat mat)))
+
+;; given a world matrix, return the list of grass xs and ys
+; using creat xys works
+(defn w_grass_xys [matrix]
+  (let [li (grass_in_w matrix)]
+    (creats_xys li)))
+
+;; Find nearest same species
+; given a species, get a list of current species/location on the map
+; remove yourself from list
+; calculate all the distances
+; shuffle (more fairness if 2 are same direction)
+; sort list
+; get smallest
+; return the point of the closest same 
+(defn nearest_same [world ent]
+  (let [my_xy [(:x ent) (:y ent)]
+        others (remove #{my_xy} (w_spect_creat_xys world (:type ent)))]
+    (get_closest my_xy others)
+    ))
+
+;; Find nearest different species
+(defn nearest_diff [world ent]
+  (let [my_xy [(:x ent) (:y ent)]
+        my_spec (:type ent)
+        others (w_spect_creat_xys world (if (= my_spec "prey")
+                                                           "predator"
+                                                           "prey"))]
+    (get_closest my_xy others)))
+
+;; Find the nearest grass block
+; deal with case where im on the grass later
+(defn nearest_grass [world ent]
+  (let [my_xy [(:x ent) (:y ent)]
+        others (w_grass_xys world)]
+    (get_closest my_xy others)))
+
+;; Given 2 points, give me the vector from one to the other
+; from central to outside
+(defn give_vector [center, other]
+  [(- (other 0) (center 0)) (- (other 1) (center 1))])
+
+;; given a vector, normalize it
+(defn normalize_vector [vec]
+  (let [x (vec 0)
+        y (vec 1)
+        mag (Math/sqrt (+ (* x x) (* y y)))]
+    (if (= mag 0)
+      [0 0]
+      [(/ x mag) (/ y mag)])))
+
+;; given a vector, flip the direction
+; determines if you go towards or away from this thing
+(defn flip_vector [vec]
+  [(- 0 (vec 0)) (- 0 (vec 1))])
+
+;; given a vector, magnify it
+(defn mag_vector [vec factor]
+  [(* factor (vec 0)) (* factor (vec 1))])
+
+;; given a list of vectors, get the sum
+(defn sum_vec_list [list]
+  (apply mapv + list))
+
+(defn round-to-hund [n] ;; credit to chatgpt for coming up with this one, ate that up
+  (/ (Math/round (* n 100)) 100.0))
+
+;; given a vector (preferably, the final one) return the direction it indicates
+; next steps: N S E W F(freeze) -> 0 1 2 3 4 
+; note: it's hard to get 0, so if the magnitude is small enough that becomes 0
+; currently, small enough will be 
+(defn final_direction [vec]
+  (let [x (vec 0)
+        y (vec 1)
+        mag (Math/sqrt (+ (* x x) (* y y)))]
+    (if (< 2 mag) ; if the magnitude of the total sum is smaller than 2, stay in the same spot
+      4
+      (let [rad_angle (round-to-hund (Math/atan2 y x))]
+        (cond
+          (< 2.35 rad_angle)
+          3
+          (< rad_angle -2.35)
+          3
+          (= rad_angle 2.35)
+          (* 3 (rand-int 2)) ; randomly 0 or 3
+          (= rad_angle -2.35)
+          (+ 2 (rand-int 2)) ; randomly 2 or 3
+          (< 0.709 rad_angle)
+          0
+          (= 0.709 rad_angle) ; randomly 0 or 1
+          (rand-int 2)
+          (< rad_angle -0.709)
+          2
+          (= rad_angle -0.709)
+          (+ 1 (rand-int 2)) ; randomly 1 or 2
+          :else
+          1
+          )))))
+
+;; generate a random movement genome
+; reminder: 
+; [[p1 d1] [p2 d2] [p3 d3] [p4 d4] [p5 d5]]
+; p can be 0-5
+; d can be 0 or 1
+(defn random_move_gene []
+  [[(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)] [(rand-int 6) (rand-int 2)]])
+
+; testing
+;(random_move_gene)
+
+;; given am ent, calculate desired direction
+(defn eval_dir [ent] 
+  (let [move_genome (:nextstep ent)
+        ]
+    ))
+
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; SPAWN WORLD ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -252,30 +442,6 @@
 ; first, get a list of the indexes of the creatures that currently exist
 ; 
 
-;;;;;;;;;; get list of creatures ;;;;;;;;;;
-
-;; given a world matrix, return a list of the creatures in it
-(defn creats_in_w [mat]
-  (remove #(= (:type %) "empty") (apply concat mat)))
-
-; testing
-;(creats_in_w (random_world))
-
-;; given this list, get the xs and ys
-(defn creats_xys [list]
-  (map vector (map :x list) (map :y list)))
-
-; testing
-;(creats_xys (list miscpred))
-
-;; given a world matrix, return the list of creature xs and ys
-(defn w_creat_xys [matrix]
-  (let [li (creats_in_w matrix)]
-    (creats_xys li)))
-
-; testing
-;(w_creat_xys (random_world))
-
 ;;;;;;;;;; movement decisions ;;;;;;;;;;
 
 ; if 0, y+1
@@ -320,45 +486,14 @@
 (defn wantstogo [ent]
   (let [dir (eval (:nextstep ent))
         here (wantstogo_helper dir (:x ent) (:y ent))]
-    ; cheking in bounds, reroll else wise
+    ; cheking in bounds, else stay in spot
     (if (in_bounds here)
       here
-      (wantstogo ent))
+      [(:x ent) (:y ent)])
     ))
 
 ; testing
 ;(wantstogo miscpred)
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; MOVEMENT GENOME ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ;;;;;;;;;; movement helper fxns ;;;;;;;;;;
 ; 
@@ -406,21 +541,8 @@
 ; randomly spread in one direction
 ; subject to change, this seems like the best idea for now
 
-;; given a world matrix, return a list of the grass in it
-(defn grass_in_w [mat]
-  (remove #(false? (:grass %)) (apply concat mat)))
-
-; testing
-;(grass_in_w (random_world))
-
-;; given a world matrix, return the list of grass xs and ys
-; using creat xys works
-(defn w_grass_xys [matrix]
-  (let [li (grass_in_w matrix)]
-    (creats_xys li)))
-
-;; given the list, get xs and ys offset by 1
-; these will be the new xs and ys
+;; given a list, get xs and ys offset by 1
+; these will be the new xs and ys for the grass
 ; can actually reuse another helper
 ; added a shuffle and take 2 to limit the amount of growth
 (defn w_newgrass [list]
@@ -494,6 +616,23 @@
         generation (:generation state)
         new-world (move_in_world world)]
     {:world new-world :frame (inc frame) :generation generation}))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ; testing
 (q/defsketch life
