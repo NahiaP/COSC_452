@@ -46,8 +46,8 @@
 (def predator-count 3) ; initial
 (def prey-count 16) ; initial
 (def frame-rate 5)
-(def lifespan 100) ; initial
-(def liferegen 50) ; how much eating regenerates
+(def lifespan 20) ; initial
+(def liferegen 20) ; how much eating regenerates
 (def middlepoints (vector (int (/ size 2)) (int (/ size 2)))) ; rounding sucks so just go to floor
 
 ;; defining a species type
@@ -209,7 +209,7 @@
       [0 0]
       [(/ x mag) (/ y mag)])))
 
-;; given a list of vectors, normaliz all of them
+;; given a list of vectors, normalize all of them
 (defn norm_vec_list [list]
   (map normalize_vector list))
 
@@ -444,6 +444,17 @@
   (q/text "gen:" 345 389))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; E. BREEDING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; get 2 lists (all preds and all prey)
+; in each list:
+;    shuffle
+;    pair them off
+;    for each pair, create 1 new animal (this number should be adjustable)
+;        for p, the animal should have a random value between each p
+;               (chance of mutation + or - rand value)
+;        for d, the animal should have a match if so or if diff a random one
+;               (chance of mutation to flip it at the end)
+;    place that animal in a random new spot
 
 
 
@@ -463,6 +474,8 @@
 
 
 
+
+;; given a world, breed the animals
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; F. NEXT STEP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -632,9 +645,33 @@
 
 
 
-
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; alternative
+; 
+;; this fxn executes the movement with a list of the creatures
+(defn move_with_list2 [world list]
+  (if (empty? list) ; (recurgrass (fill_blanks) (m_grs_spts size 2))
+    (recurnewgrass world (w_newgrass (w_grass_xys world)))
+    (let [curent (get_ent world ((first list) 0) ((first list) 1)) ; getting entity info
+          alive (:lifeleft curent)] ; check if it's alive first
+      (if (= alive 0) ; if dead, kill it
+      (move_with_list2 (replace_ent world (:x curent) (:y curent) "empty" nil (:grass curent) nil) (rest list))
+      (let [spotxy (wantstogo curent world) ; getting desired direction
+            spot (get_ent world (spotxy 0) (spotxy 1))] ; getting what is there
+            (cond
+              (= (:type spot) "empty")
+              (if
+               (= (:type curent) "prey") ; pred or prey
+                (move_with_list2 (moveprey world curent spot) (rest list)) ; [world ent new] 
+                (move_with_list2 (movepred world curent spot) (rest list))) ; [world ent new] 
+              (= (:type spot) "prey")
+              (if
+               (= (:type curent) "prey") ; pred or prey
+                (move_with_list2 (createstayed world curent) (rest list))
+                (move_with_list2 (slay world curent spot) (rest list)))
+              (= (:type spot) "predator")
+              (if (= (:type curent) "predator") ; pred or prey
+                (move_with_list2 (createstayed world curent) (rest list))
+                (move_with_list2 (slayed world curent spot) (rest list)))))))))
 
 
 
