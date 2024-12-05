@@ -626,11 +626,21 @@
 (defn steps-forward [state]
   (let [world (:world state)
         frame (:frame state)
-        generation (:generation state)
-        new-world (move_in_world world)]
-    {:world new-world :frame (inc frame) :generation generation}))
+        generation (:generation state)]
+    (if (not= frame 100)
+      ; what happens if the frame isn't 100 (i.e. still in the generation)
+      (let [new-world (move_in_world world)]
+        {:world new-world :frame (inc frame) :generation generation})
+      ; what happens if the frame is 100 (i.e. breed, )
+      (let [frame (:frame 0)
+            generation (:generation (inc generation))
+            new-world (breed-entities world)]
+        {:world new-world :frame frame :generation generation}))
+  )
+)
 
 (defn steps-forward2 [state]
+  ()
   (let [world (:world state)
         frame (:frame state)
         generation (:generation state)
