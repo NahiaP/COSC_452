@@ -466,26 +466,96 @@
 ;    place that animal in a random new spot
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;; Code that actually works
+
+;; given 2 ps, generate a child p
+(defn give_new_p [val1 val2]
+  (let [ordered (sort [val1 val2])
+        numb (+ (rand-int (+ (- (second ordered) (first ordered)) 1)) (first ordered))]
+        (if (= 0 (rand-int (int (/ 1 mutation-chance))))
+        (if (= 0 (rand-int 2))
+          (+ 1 numb)
+          (- numb 1)
+          )
+        numb
+        )
+  ))
+
+;; give 2 ds, generate a child p
+(defn give_new_d [val1 val2]
+  (if (= val1 val2)
+    (if (= 0 (rand-int (int (/ 1 mutation-chance))))
+      (rand-int 2)
+      val1
+      )
+    (rand-int 2))
+  )
+
+;; given 2 nextstep lists, return a new one
+(defn breed [parent1 parent2]
+  (let[p1 (give_new_p (((:nextstep parent1) 0) 0) (((:nextstep parent2) 0) 0))
+       d1 (give_new_d (((:nextstep parent1) 0) 1) (((:nextstep parent2) 0) 1))
+       p2 (give_new_p (((:nextstep parent1) 1) 0) (((:nextstep parent2) 1) 0))
+       d2 (give_new_d (((:nextstep parent1) 1) 1) (((:nextstep parent2) 1) 1))
+       p3 (give_new_p (((:nextstep parent1) 2) 0) (((:nextstep parent2) 2) 0))
+       d3 (give_new_d (((:nextstep parent1) 2) 1) (((:nextstep parent2) 2) 1))
+       p4 (give_new_p (((:nextstep parent1) 3) 0) (((:nextstep parent2) 3) 0))
+       d4 (give_new_d (((:nextstep parent1) 3) 1) (((:nextstep parent2) 3) 1))
+       p5 (give_new_p (((:nextstep parent1) 4) 0) (((:nextstep parent2) 4) 0))
+       d5 (give_new_d (((:nextstep parent1) 4) 1) (((:nextstep parent2) 4) 1))]
+  [[p1 d1] [p2 d2] [p3 d3] [p4 d4] [p5 d5]]
+  ))
+
+;; given a matrix and 2 parents, spawn an offspring in the world
+(defn create-offspring [matrix parent1 parent2]
+  (let [newx (rand-int size)
+        newy (rand-int size)
+        check (type&grass_xy matrix newx newy)]
+    (if (= (check 0) "empty")
+      (replace_ent matrix newx newy (:type parent1) (breed parent1 parent2) (check 1) false)
+      (create-offspring matrix parent1 parent2))))
+
+(second [3 38 5 6])
+
+;; given a world and a list of pairs (either animal), recurse and make a baby for every pair
+(defn breed_this_list [world list]
+  (if (empty? list) 
+    world
+    (if (= (count list) 1)
+      world
+      (let [parent1 (first list)
+            parent2 (second list)]
+        (breed_this_list (create-offspring world parent1 parent2) (rest list))))))
+
+;; given a matrix and an ent, set the state to not ate
+(defn empty_stomach [world ent]
+  (replace_ent world (:x ent) (:y ent) (:type ent) (:nextstep ent) (:grass ent) false))
+
+;; given a list of animals that ate, empty all their stomachs
+(defn empty_all_stomachs [world list]
+  (if (empty? list) ; 
+    world
+    (let [curr (first list)]
+          (empty_all_stomachs (empty_stomach world curr) (rest list))
+      )))
+
+(defn remove_corpse [world ent]
+  (replace_ent world (:x ent) (:y ent) nil nil (:grass ent) nil))
+
+(defn remove_corpses [world list]
+  (if (empty? list) 
+    world
+    (let [curr (first list)]
+          (remove_corpses (remove_corpse world curr) (rest list))
+      )))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-;; given a world, breed the animals
-
+;; breed-entities
+(defn breed-entities [world]
+ (let [preds (vec (filter :ate (shuffle (spec_creats_in_w world "predator"))))       
+       prey (vec (filter :ate (shuffle (spec_creats_in_w world "prey"))))
+       dead (vec (remove :ate (creats_in_w world)))]
+       (empty_all_stomachs (empty_all_stomachs (breed_this_list (breed_this_list (remove_corpses world dead) preds) prey) preds) prey)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; F. NEXT STEP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -627,16 +697,14 @@
   (let [world (:world state)
         frame (:frame state)
         generation (:generation state)]
-    (if (not= frame 100)
+    (if (= frame 100)
+      ; what happens if the frame is 100 (i.e. breed)
+      (let [new-world1 (breed-entities world)]
+        {:world new-world1 :frame 0 :generation (inc generation)})
       ; what happens if the frame isn't 100 (i.e. still in the generation)
-      (let [new-world (move_in_world world)]
-        {:world new-world :frame (inc frame) :generation generation})
-      ; what happens if the frame is 100 (i.e. breed, )
-      (let [frame (:frame 0)
-            generation (:generation (inc generation))
-            new-world (breed-entities world)]
-        {:world new-world :frame frame :generation generation}))
-  )
+      (let [new-world2 (move_in_world world)]
+        {:world new-world2 :frame (inc frame) :generation generation})
+  ))
 )
 
 (defn steps-forward2 [state]
@@ -644,7 +712,7 @@
   (let [world (:world state)
         frame (:frame state)
         generation (:generation state)
-        new-world (move_in_world world)]
+        new-world (breed-entities world)]
     {:world new-world :frame (inc frame) :generation generation}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; G. TESTING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -657,192 +725,3 @@
   :draw (fn [state] (draw-world (:world state) (:frame state) (:generation state)))
   :middleware [m/fun-mode])
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; E. BREEDING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-; get 2 lists (all preds and all prey)
-; in each list:
-;    shuffle
-;    filter for only ones that did eat
-;    pair them off
-;    for each pair, create 1 new animal (this number should be adjustable)
-;        for p, the animal should have a random value between each p
-;               (chance of mutation + or - rand value)
-;        for d, the animal should have a match if so or if diff a random one
-;               (chance of mutation to flip it at the end)
-;    place that animal in a random new spot
-
-
-
- ; 1. Extract lists of all predators and prey.
- ; 2. Shuffle each list, filter for only those that ate, and pair them off.
- ; 3. For each pair, create a new animal with randomized properties:
- ;      - For `p`, the property is a random value between the parents' values, with a chance of mutation.
- ;      - For `d`, the property is inherited directly or randomly with a chance of mutation.
- ; 4. Place the new animal in a random empty spot in the world.
-
-
-
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;; Code that actually works
-
-;; given 2 ps, generate a child p
-(defn give_new_p [val1 val2]
-  (let [ordered (sort [val1 val2])
-        numb (+ (rand-int (+ (- (second ordered) (first ordered)) 1)) (first ordered))]
-        (if (= 0 (rand-int (int (/ 1 mutation-chance))))
-        (if (= 0 (rand-int 2))
-          (+ 1 numb)
-          (- numb 1)
-          )
-        numb
-        )
-  ))
-
-;; give 2 ds, generate a child p
-(defn give_new_d [val1 val2]
-  (if (= val1 val2)
-    (if (= 0 (rand-int (int (/ 1 mutation-chance))))
-      (rand-int 2)
-      val1
-      )
-    (rand-int 2))
-  )
-
-;; given 2 nextstep lists, return a new one
-(defn breed [parent1 parent2]
-  (let[p1 (give_new_p (((:nextstep parent1) 0) 0) (((:nextstep parent2) 0) 0))
-       d1 (give_new_d (((:nextstep parent1) 0) 1) (((:nextstep parent2) 0) 1))
-       p2 (give_new_p (((:nextstep parent1) 1) 0) (((:nextstep parent2) 1) 0))
-       d2 (give_new_d (((:nextstep parent1) 1) 1) (((:nextstep parent2) 1) 1))
-       p3 (give_new_p (((:nextstep parent1) 2) 0) (((:nextstep parent2) 2) 0))
-       d3 (give_new_d (((:nextstep parent1) 2) 1) (((:nextstep parent2) 2) 1))
-       p4 (give_new_p (((:nextstep parent1) 3) 0) (((:nextstep parent2) 3) 0))
-       d4 (give_new_d (((:nextstep parent1) 3) 1) (((:nextstep parent2) 3) 1))
-       p5 (give_new_p (((:nextstep parent1) 4) 0) (((:nextstep parent2) 4) 0))
-       d5 (give_new_d (((:nextstep parent1) 4) 1) (((:nextstep parent2) 4) 1))]
-  [[p1 d1] [p2 d2] [p3 d3] [p4 d4] [p5 d5]]
-  ))
-
-;; given a matrix and 2 parents, spawn an offspring in the world
-(defn create-offspring [matrix parent1 parent2]
-  (let [newx (rand-int size)
-        newy (rand-int size)
-        check (type&grass_xy matrix newx newy)]
-    (if (= (check 0) "empty")
-      (replace_ent matrix newx newy (:type parent1) (breed parent1 parent2) (check 1) false)
-      (create-offspring matrix parent1 parent2))))
-
-;; given a world and a list of pairs (either animal), recurse and make a baby for every pair
-(defn breed_this_list [world list]
-  (if (empty? list) 
-    world
-    (let [parent1 ((first list) 0)
-          parent2 ((first list) 1)]
-          (breed_this_list (create-offspring world parent1 parent2) (rest list)))))
-
-;; given a matrix and an ent, set the state to not ate
-(defn empty_stomach [world ent]
-  (replace_ent world (:x ent) (:y ent) (:type ent) (:nextstep ent) (:grass ent) false))
-
-;; given a list of animals that ate, empty all their stomachs
-(defn empty_all_stomachs [world list]
-  (if (empty? list) ; 
-    world
-    (let [curr (first (first (list)))]
-          (move_with_list (empty_stomach world curr) (rest list))
-      )))
-
-;; breed-entities
-(defn breed-entities [world]
- (let [preds (vec (filter :ate (shuffle (spec_creats_in_w world "predator"))))       
-       prey (vec (filter :ate (shuffle (spec_creats_in_w world "prey"))))        
-       pairspreds (vec (partition 2 preds)) ; Pair off predators
-       pairsprey  (vec (partition 2 prey))]
-       (empty_all_stomachs (empty_all_stomachs (breed_this_list (breed_this_list world pairspreds) pairsprey) preds) prey)
-   ))
-
-
-(def tester_world (random_world))
-(print tester_world)
-
- (vec (filter :ate (shuffle (spec_creats_in_w tester_world "predator")))) 
-
-(def iop (Entity. "predator" 4 20 [[5 1] [4 0] [5 0] [2 1] [0 0]] true true))
-(def iop2 (Entity. "predator" 20 4 [[5 1] [4 0] [5 0] [2 1] [0 0]] true true))
-
-(vec (partition 2 [iop iop iop]))
-
-(replace_ent (replace_ent tester_world 4 20 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] false true) 20 4 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] true true)
-(breed-entities  (replace_ent (replace_ent tester_world 4 20 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] false true) 20 4 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] true true))
-
-
-
-
-
-
-
-
-
-
-
-create-offspring
-       (fn [pair]
-         (when (= 2 (count pair))
-           (let [p1 (:p (first pair))
-                 p2 (:p (second pair))
-                 d1 (:d (first pair))
-                 d2 (:d (second pair))
-                 new-p (+ (rand-nth [p1 p2]) (* mutation-range (rand)))
-                 new-d (if (= d1 d2) d1 (rand-nth [true false]))]
-; Return the new offspring with its inherited and mutated properties.
-             {:p new-p
-              :d (if (< (rand) mutation-chance) (not new-d) new-d)}))) 
-
-
-
-(def miscpred1 (Entity. "predator" 4 20 (list rand-int 5) true true))
-(def miscpred2 (Entity. "predator" 4 20 (list rand-int 5) true false))
-(def miscpred3 (Entity. "predator" 4 20 (list rand-int 5) true true))
-
-
-(vec (filter :ate [miscpred1 miscpred2 miscpred3]))
-
-
-(first (first (partition 2 2 nil [miscpred1 miscpred2 miscpred3])))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-;; given a world, breed the animals
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; F. NEXT STEP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-; transsion the breeding function
-;
-
-(random_move_gene)
-
-
-(defn step-forward [world frame-count]
-; First, allow the creatures to breed.
- (let [world-after-breeding (breed-entities world)
-; Next, move the creatures (assuming `move-entities` is defined elsewhere).
-       world-after-movement (move-entities world-after-breeding)]
- ; Return the updated world after breeding and movement. 
-   world-after-movement))
-; take a world and move every creature
