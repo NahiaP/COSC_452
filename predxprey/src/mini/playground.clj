@@ -664,6 +664,8 @@
 
 
 
+
+(defn breed-entities [world]
  ; 1. Extract lists of all predators and prey.
  ; 2. Shuffle each list, filter for only those that ate, and pair them off.
  ; 3. For each pair, create a new animal with randomized properties:
@@ -674,97 +676,24 @@
 
 
 
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;; Code that actually works
-
-;; given 2 ps, generate a child p
-(defn give_new_p [val1 val2]
-  (let [ordered (sort [val1 val2])
-        numb (+ (rand-int (+ (- (second ordered) (first ordered)) 1)) (first ordered))]
-        (if (= 0 (rand-int (int (/ 1 mutation-chance))))
-        (if (= 0 (rand-int 2))
-          (+ 1 numb)
-          (- numb 1)
-          )
-        numb
-        )
-  ))
-
-;; give 2 ds, generate a child p
-(defn give_new_d [val1 val2]
-  (if (= val1 val2)
-    (if (= 0 (rand-int (int (/ 1 mutation-chance))))
-      (rand-int 2)
-      val1
-      )
-    (rand-int 2))
-  )
-
-;; given 2 nextstep lists, return a new one
-(defn breed [parent1 parent2]
-  (let[p1 (give_new_p (((:nextstep parent1) 0) 0) (((:nextstep parent2) 0) 0))
-       d1 (give_new_d (((:nextstep parent1) 0) 1) (((:nextstep parent2) 0) 1))
-       p2 (give_new_p (((:nextstep parent1) 1) 0) (((:nextstep parent2) 1) 0))
-       d2 (give_new_d (((:nextstep parent1) 1) 1) (((:nextstep parent2) 1) 1))
-       p3 (give_new_p (((:nextstep parent1) 2) 0) (((:nextstep parent2) 2) 0))
-       d3 (give_new_d (((:nextstep parent1) 2) 1) (((:nextstep parent2) 2) 1))
-       p4 (give_new_p (((:nextstep parent1) 3) 0) (((:nextstep parent2) 3) 0))
-       d4 (give_new_d (((:nextstep parent1) 3) 1) (((:nextstep parent2) 3) 1))
-       p5 (give_new_p (((:nextstep parent1) 4) 0) (((:nextstep parent2) 4) 0))
-       d5 (give_new_d (((:nextstep parent1) 4) 1) (((:nextstep parent2) 4) 1))]
-  [[p1 d1] [p2 d2] [p3 d3] [p4 d4] [p5 d5]]
-  ))
-
-;; 
-(defn create-offspring [matrix parent1 parent2]
-  (let [newx (rand-int size)
-        newy (rand-int size)
-        check (type&grass_xy matrix newx newy)]
-    (if (= (check 0) "empty")
-      (replace_ent matrix newx newy (:type parent1) (breed parent1 parent2) (check 1) false)
-      (create-offspring matrix parent1 parent2))))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(defn breed-entities [world]
- (let [preds (filter :ate (shuffle (spec_creats_in_w world "predator")))        
-       prey (filter :ate (shuffle (spec_creats_in_w world "prey")))        
-       pairs-preds (partition 2 2 nil preds) ; Pair off predators
-       pairs-prey  (partition 2 2 nil prey)]
-; Step 5: Create offspring for each pair and place them in the world. 
-   ))
-
-
-(def tester_world (random_world))
-(print tester_world)
-(replace_ent (replace_ent tester_world 4 20 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] false true) 20 4 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] true true)
-(breed (replace_ent (replace_ent tester_world 4 20 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] false true) 20 4 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] true true)     )
-
-
-
-
-
-
-
-
-
-
-
-create-offspring
+; Step 1: Extract all creatures and grid size.
+ (let [all-creatures (creats_in_w world) 
+; Step 2: Separate creatures into two groups: predators and prey.              
+       preds (filter #(= (:type %) "predator") all-creatures)
+       prey  (filter #(= (:type %) "prey") all-creatures)
+  ; Step 3: Shuffle the lists and filter for those that ate.
+       shuffled-preds (shuffle preds)
+       shuffled-prey  (shuffle prey)
+       eligible-preds (filter :ate shuffled-preds)
+       eligible-prey  (filter :ate shuffled-prey)
+; Step 4: Pair them up for breeding.
+       pairs-preds (partition 2 2 nil eligible-preds) ; Pair off predators
+       pairs-prey  (partition 2 2 nil eligible-prey)  ;now prey
+ ; Mutation settings to control randomness in breeding.
+       mutation-chance 0.1 
+       mutation-range 0.05 ; Random mutation adjustment range
+;create a new offspring from a pair of creatures.
+       create-offspring
        (fn [pair]
          (when (= 2 (count pair))
            (let [p1 (:p (first pair))
@@ -776,18 +705,43 @@ create-offspring
 ; Return the new offspring with its inherited and mutated properties.
              {:p new-p
               :d (if (< (rand) mutation-chance) (not new-d) new-d)}))) 
+;place an offspring in a random empty spot in the grid.
+       place-offspring
+       (fn [offspring]
+         (loop []
+           (let [rand-x (rand-int size)
+                 rand-y (rand-int size)]
+             (if (nil? (get-in world [rand-y rand-x]))
+               (assoc-in world [rand-y rand-x] offspring)
+               (recur)))))]
+; Step 5: Create offspring for each pair and place them in the world. 
+   (reduce (fn [w pair]
+             (if-let [offspring (create-offspring pair)]
+               (place-offspring offspring)
+               w))
+           world
+           (concat pairs-preds pairs-prey))))
+
+
+(def tester_world (random_world))
+(print tester_world)
+(replace_ent (replace_ent tester_world 4 20 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] false true) 20 4 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] true true)
+(breed-entities (replace_ent (replace_ent tester_world 4 20 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] false true) 20 4 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] true true))
 
 
 
-(def miscpred1 (Entity. "predator" 4 20 (list rand-int 5) true true))
-(def miscpred2 (Entity. "predator" 4 20 (list rand-int 5) true false))
-(def miscpred3 (Entity. "predator" 4 20 (list rand-int 5) true true))
-
-(filter :ate [miscpred1 miscpred2 miscpred3])
 
 
 
-(partition 2 2 nil [miscpred1 miscpred2 miscpred3])
+
+
+
+
+
+
+
+
+
 
 
 
