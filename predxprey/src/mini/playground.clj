@@ -539,8 +539,13 @@
           (empty_all_stomachs (empty_stomach world curr) (rest list))
       )))
 
+;(Entity. "empty" x y nil false nil)
+
 (defn remove_corpse [world ent]
-  (replace_ent world (:x ent) (:y ent) nil nil (:grass ent) nil))
+  (let [x (:x ent)
+        y (:y ent)
+        grass (:grass ent)]
+  (replace_ent world x y "empty" nil grass nil)))
 
 (defn remove_corpses [world list]
   (if (empty? list) 
@@ -697,7 +702,7 @@
   (let [world (:world state)
         frame (:frame state)
         generation (:generation state)]
-    (if (= frame 100)
+    (if (= frame 20)
       ; what happens if the frame is 100 (i.e. breed)
       (let [new-world1 (breed-entities world)]
         {:world new-world1 :frame 0 :generation (inc generation)})
