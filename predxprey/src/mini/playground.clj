@@ -716,7 +716,7 @@
   [[p1 d1] [p2 d2] [p3 d3] [p4 d4] [p5 d5]]
   ))
 
-;; 
+;; given a matrix and 2 parents, spawn an offspring in the world
 (defn create-offspring [matrix parent1 parent2]
   (let [newx (rand-int size)
         newy (rand-int size)
@@ -725,34 +725,48 @@
       (replace_ent matrix newx newy (:type parent1) (breed parent1 parent2) (check 1) false)
       (create-offspring matrix parent1 parent2))))
 
+;; given a world and a list of pairs (either animal), recurse and make a baby for every pair
+(defn breed_this_list [world list]
+  (if (empty? list) 
+    world
+    (let [parent1 ((first list) 0)
+          parent2 ((first list) 1)]
+          (breed_this_list (create-offspring world parent1 parent2) (rest list)))))
 
+;; given a matrix and an ent, set the state to not ate
+(defn empty_stomach [world ent]
+  (replace_ent world (:x ent) (:y ent) (:type ent) (:nextstep ent) (:grass ent) false))
 
+;; given a list of animals that ate, empty all their stomachs
+(defn empty_all_stomachs [world list]
+  (if (empty? list) ; 
+    world
+    (let [curr (first (first (list)))]
+          (move_with_list (empty_stomach world curr) (rest list))
+      )))
 
-
-
-
-
-
-
-
-
-
-
-
-
+;; breed-entities
 (defn breed-entities [world]
- (let [preds (filter :ate (shuffle (spec_creats_in_w world "predator")))        
-       prey (filter :ate (shuffle (spec_creats_in_w world "prey")))        
-       pairs-preds (partition 2 2 nil preds) ; Pair off predators
-       pairs-prey  (partition 2 2 nil prey)]
-; Step 5: Create offspring for each pair and place them in the world. 
+ (let [preds (vec (filter :ate (shuffle (spec_creats_in_w world "predator"))))       
+       prey (vec (filter :ate (shuffle (spec_creats_in_w world "prey"))))        
+       pairspreds (vec (partition 2 preds)) ; Pair off predators
+       pairsprey  (vec (partition 2 prey))]
+       (empty_all_stomachs (empty_all_stomachs (breed_this_list (breed_this_list world pairspreds) pairsprey) preds) prey)
    ))
 
 
 (def tester_world (random_world))
 (print tester_world)
+
+ (vec (filter :ate (shuffle (spec_creats_in_w tester_world "predator")))) 
+
+(def iop (Entity. "predator" 4 20 [[5 1] [4 0] [5 0] [2 1] [0 0]] true true))
+(def iop2 (Entity. "predator" 20 4 [[5 1] [4 0] [5 0] [2 1] [0 0]] true true))
+
+(vec (partition 2 [iop iop iop]))
+
 (replace_ent (replace_ent tester_world 4 20 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] false true) 20 4 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] true true)
-(breed (replace_ent (replace_ent tester_world 4 20 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] false true) 20 4 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] true true)     )
+(breed-entities  (replace_ent (replace_ent tester_world 4 20 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] false true) 20 4 "predator" [[5 1] [4 0] [5 0] [2 1] [0 0]] true true))
 
 
 
@@ -783,11 +797,11 @@ create-offspring
 (def miscpred2 (Entity. "predator" 4 20 (list rand-int 5) true false))
 (def miscpred3 (Entity. "predator" 4 20 (list rand-int 5) true true))
 
-(filter :ate [miscpred1 miscpred2 miscpred3])
+
+(vec (filter :ate [miscpred1 miscpred2 miscpred3]))
 
 
-
-(partition 2 2 nil [miscpred1 miscpred2 miscpred3])
+(first (first (partition 2 2 nil [miscpred1 miscpred2 miscpred3])))
 
 
 
