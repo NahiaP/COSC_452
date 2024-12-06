@@ -1,4 +1,4 @@
-(ns mini.predator-prey-simulation
+(ns archive.ms-predator-prey-simulation
   (:require [quil.core :as q]
             [quil.middleware :as m]))
 
