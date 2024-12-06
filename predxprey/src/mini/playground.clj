@@ -45,11 +45,16 @@
 ;; Define the size of the world and other parameters
 ; adjustable:
 (def size 40)
-(def predator-count 3) ; initial
-(def prey-count 16) ; initial
+(def predator-count 2) ; initial
+(def prey-count 21) ; initial
 (def frame-rate 5)
 (def grass_regrowth 2) ; rate at which grass re-grows
+(def numb_of_grass_chunks 4)
+(def pred_children 1)
+(def prey_children 1)
+
 (def mutation-chance 0.1)
+(def frames_in_a_gen 50)
 
 
 
@@ -161,7 +166,9 @@
 (defn nearest_same [world ent]
   (let [my_xy [(:x ent) (:y ent)]
         others (remove #{my_xy} (w_spect_creat_xys world (:type ent)))]
-    (get_closest my_xy others)
+    (if (empty? others)
+    [0 0]
+    (get_closest my_xy others))
     ))
 
 ;; Find nearest different species
@@ -171,14 +178,18 @@
         others (w_spect_creat_xys world (if (= my_spec "prey")
                                                            "predator"
                                                            "prey"))]
-    (get_closest my_xy others)))
+    (if (empty? others)
+    [0 0]
+    (get_closest my_xy others))))
 
 ;; Find the nearest grass block
 ; deal with case where im on the grass later
 (defn nearest_grass [world ent]
   (let [my_xy [(:x ent) (:y ent)]
         others (w_grass_xys world)]
-    (get_closest my_xy others)))
+    (if (empty? others)
+    [0 0]
+    (get_closest my_xy others))))
 
 ;; give a random index to step to 
 (defn rand_dir [x y]
@@ -286,9 +297,11 @@
         random (rand_dir (:x ent) (:y ent))
         list_of_points [middlepoints nearest_same nearest_other nearest_grass random]
         list_of_flips (mapv second move_genome)
-        list_of_mags (mapv first move_genome)]
-        (final_direction (sum_vec_list (mapv mag_vector (mapv list_flipper (norm_vec_list (get_all_the_vectors list_of_points [(:x ent) (:y ent)])) list_of_flips) list_of_mags)))
-    ))
+        list_of_mags (mapv first move_genome)
+        check_list (mapv mag_vector (mapv list_flipper (norm_vec_list (get_all_the_vectors list_of_points [(:x ent) (:y ent)])) list_of_flips) list_of_mags)]
+        (if (empty? check_list)
+        4
+        (final_direction (sum_vec_list (mapv mag_vector (mapv list_flipper (norm_vec_list (get_all_the_vectors list_of_points [(:x ent) (:y ent)])) list_of_flips) list_of_mags))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; C. SPAWN WORLD ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -414,7 +427,7 @@
 ;; stack each step of preparing an empty world
 ; the let/if is because sometimes the world wouldn't work (i think problems with bounds I was too lazy to fix)
 (defn random_world []
-  (let [world (recurprey (recurpred (recurgrass (fill_blanks) (m_grs_spts size 2)) predator-count) prey-count)]
+  (let [world (recurprey (recurpred (recurgrass (fill_blanks) (m_grs_spts size numb_of_grass_chunks)) predator-count) prey-count)]
     (if world
       world
       (random_world))))
@@ -525,7 +538,7 @@
       world
       (let [parent1 (first list)
             parent2 (second list)]
-        (breed_this_list (create-offspring world parent1 parent2) (rest list))))))
+        (breed_this_list (create-offspring world parent1 parent2) (rest (rest list)))))))
 
 ;; given a matrix and an ent, set the state to not ate
 (defn empty_stomach [world ent]
@@ -538,8 +551,6 @@
     (let [curr (first list)]
           (empty_all_stomachs (empty_stomach world curr) (rest list))
       )))
-
-;(Entity. "empty" x y nil false nil)
 
 (defn remove_corpse [world ent]
   (let [x (:x ent)
@@ -554,11 +565,32 @@
           (remove_corpses (remove_corpse world curr) (rest list))
       )))
 
+; todo, fix the cutting down of list 
+
+(defn recur_list [list1 list2 count]
+   (if (= 1 count)
+     list1
+     (let [newlist (apply conj list1 list2)]
+       (recur_list newlist list2 (dec count))
+       )))
+
+(defn extend_list [list count]
+  (recur_list list list count))
+
+;; get list to breed ents
+; to make multiple offspring, this will return copies of the list
+(defn get_ent_list_4_breeding [world type rate]
+  (let [initial_list (shuffle (vec (filter :ate (spec_creats_in_w world type))))
+        count (count initial_list)]
+        (if (odd? count)
+          (extend_list (vec (drop-last initial_list )) rate)
+          (extend_list initial_list rate))))
+
 
 ;; breed-entities
 (defn breed-entities [world]
- (let [preds (vec (filter :ate (shuffle (spec_creats_in_w world "predator"))))       
-       prey (vec (filter :ate (shuffle (spec_creats_in_w world "prey"))))
+ (let [preds (get_ent_list_4_breeding world "predator" pred_children)    
+       prey (get_ent_list_4_breeding world "prey" prey_children) 
        dead (vec (remove :ate (creats_in_w world)))]
        (empty_all_stomachs (empty_all_stomachs (breed_this_list (breed_this_list (remove_corpses world dead) preds) prey) preds) prey)))
 
@@ -614,9 +646,11 @@
 ; splitting them up makes it easier to deal with grass
 (defn moveprey [world ent new] 
   (let [oldgrass (:grass ent)] ; don't want to acidentaly move grass around
-    (replace_ent (replace_ent world (:x new) (:y new) (:type ent) (:nextstep ent) false (if (true? oldgrass) ; check for grass
-                                                                                          true
-                                                                                          false)) (:x ent) (:y ent) "empty" nil oldgrass nil)))
+    (replace_ent (replace_ent world (:x new) (:y new) "prey" (:nextstep ent) false (if (true? (:ate ent))
+                                                                                     true
+                                                                                     (if (true? (:grass new))
+                                                                                       true
+                                                                                       false))) (:x ent) (:y ent) "empty" nil oldgrass nil)))
 
 ;; a prey walks into a spot with a predator and gets eaten
 (defn slayed [world idiot pred] ; later, add mechanism to extend pred life
@@ -625,7 +659,7 @@
 ;; a pred walks into a prey and eats it
 (defn slay [world pred prey] 
   (let [oldgrass (:grass pred)]
-    (replace_ent (replace_ent world (:x prey) (:y prey) "predator" (:nextstep pred) false true) (:x prey) (:y prey) "empty" nil oldgrass nil)
+    (replace_ent (replace_ent world (:x prey) (:y prey) "predator" (:nextstep pred) false true) (:x prey) (:y prey) "empty" nil false nil)
       ))
 
 ;;;;;;;;;; F.3. grass-respawning ;;;;;;;;;;
@@ -702,7 +736,7 @@
   (let [world (:world state)
         frame (:frame state)
         generation (:generation state)]
-    (if (= frame 20)
+    (if (= frame frames_in_a_gen)
       ; what happens if the frame is 100 (i.e. breed)
       (let [new-world1 (breed-entities world)]
         {:world new-world1 :frame 0 :generation (inc generation)})
@@ -712,21 +746,13 @@
   ))
 )
 
-(defn steps-forward2 [state]
-  ()
-  (let [world (:world state)
-        frame (:frame state)
-        generation (:generation state)
-        new-world (breed-entities world)]
-    {:world new-world :frame (inc frame) :generation generation}))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; G. TESTING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(q/defsketch life
+(defn -main []
+   (q/defsketch life
   :host "host"
   :size [(* size 10) (* size 10)]
   :setup setup
   :update (fn [state] (steps-forward state))
   :draw (fn [state] (draw-world (:world state) (:frame state) (:generation state)))
-  :middleware [m/fun-mode])
-
+  :middleware [m/fun-mode]))
