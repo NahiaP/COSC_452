@@ -739,8 +739,8 @@
         {:world new-world1 :frame 0 :generation (inc generation)})
       ; what happens if the frame isn't 100 (i.e. still in the generation)
       (let [new-world2 (move_in_world world)]
-        {:world new-world2 :frame (inc frame) :generation generation})
-  ))
+        {:world new-world2 :frame (inc frame) :generation generation}))
+  )
 )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; G. TESTING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
