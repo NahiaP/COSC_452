@@ -528,8 +528,6 @@
       (replace_ent matrix newx newy (:type parent1) (breed parent1 parent2) (check 1) false)
       (create-offspring matrix parent1 parent2))))
 
-(second [3 38 5 6])
-
 ;; given a world and a list of pairs (either animal), recurse and make a baby for every pair
 (defn breed_this_list [world list]
   (if (empty? list) 
