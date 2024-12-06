@@ -748,11 +748,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; G. TESTING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn -main []
-   (q/defsketch life
+
+(q/defsketch life
   :host "host"
   :size [(* size 10) (* size 10)]
   :setup setup
   :update (fn [state] (steps-forward state))
   :draw (fn [state] (draw-world (:world state) (:frame state) (:generation state)))
-  :middleware [m/fun-mode]))
+  :middleware [m/fun-mode])
