@@ -553,10 +553,7 @@
       )))
 
 (defn remove_corpse [world ent]
-  (let [x (:x ent)
-        y (:y ent)
-        grass (:grass ent)]
-  (replace_ent world x y "empty" nil grass nil)))
+  (replace_ent world (:x ent) (:y ent) nil nil (:grass ent) nil))
 
 (defn remove_corpses [world list]
   (if (empty? list) 
