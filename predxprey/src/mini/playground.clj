@@ -553,7 +553,10 @@
       )))
 
 (defn remove_corpse [world ent]
-  (replace_ent world (:x ent) (:y ent) nil nil (:grass ent) nil))
+  (let [x (:x ent)
+        y (:y ent)
+        grass (:grass ent)]
+  (replace_ent world x y "empty" nil grass nil)))
 
 (defn remove_corpses [world list]
   (if (empty? list) 
@@ -739,8 +742,8 @@
         {:world new-world1 :frame 0 :generation (inc generation)})
       ; what happens if the frame isn't 100 (i.e. still in the generation)
       (let [new-world2 (move_in_world world)]
-        {:world new-world2 :frame (inc frame) :generation generation}))
-  )
+        {:world new-world2 :frame (inc frame) :generation generation})
+  ))
 )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; G. TESTING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
