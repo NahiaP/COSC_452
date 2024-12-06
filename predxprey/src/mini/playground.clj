@@ -45,7 +45,7 @@
 ;; Define the size of the world and other parameters
 ; adjustable:
 (def size 40)
-(def predator-count 2) ; initial
+(def predator-count 4) ; initial
 (def prey-count 21) ; initial
 (def frame-rate 5)
 (def grass_regrowth 2) ; rate at which grass re-grows
@@ -589,10 +589,11 @@
 
 ;; breed-entities
 (defn breed-entities [world]
- (let [preds (get_ent_list_4_breeding world "predator" pred_children)    
-       prey (get_ent_list_4_breeding world "prey" prey_children) 
+ (let [preds_breed_list (get_ent_list_4_breeding world "predator" pred_children)    
+       prey_breed_list (get_ent_list_4_breeding world "prey" prey_children) 
+       ate (vec (filter :ate (creats_in_w world)))
        dead (vec (remove :ate (creats_in_w world)))]
-       (empty_all_stomachs (empty_all_stomachs (breed_this_list (breed_this_list (remove_corpses world dead) preds) prey) preds) prey)))
+       (empty_all_stomachs (breed_this_list (breed_this_list (remove_corpses world dead) preds_breed_list) prey_breed_list) ate)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; F. NEXT STEP ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -749,10 +750,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; G. TESTING ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(q/defsketch life
-  :host "host"
-  :size [(* size 10) (* size 10)]
-  :setup setup
-  :update (fn [state] (steps-forward state))
-  :draw (fn [state] (draw-world (:world state) (:frame state) (:generation state)))
-  :middleware [m/fun-mode])
+;(defn -main []
+  (q/defsketch life
+    :host "host"
+    :size [(* size 10) (* size 10)]
+    :setup setup
+    :update (fn [state] (steps-forward state))
+    :draw (fn [state] (draw-world (:world state) (:frame state) (:generation state)))
+    :middleware [m/fun-mode]);)
