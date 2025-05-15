@@ -2,7 +2,7 @@
 
 This folder holds some scripts used to test out features of the observer and controller. 
 
-## maincam.py
+* maincam.py
 Daisy has 2 front cameras that are fisheye and tilted. This script was used to test out the rotation and cropping angles to get a sufficient view of the front.
 
 ## pygame-joystick-test.py
