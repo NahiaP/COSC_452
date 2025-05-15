@@ -2,8 +2,7 @@
 
 This folder holds some scripts used to test out features of the observer and controller. 
 
-* maincam.py
-Daisy has 2 front cameras that are fisheye and tilted. This script was used to test out the rotation and cropping angles to get a sufficient view of the front.
+* **maincam.py**: Daisy has 2 front cameras that are fisheye and tilted. This script was used to test out the rotation and cropping angles to get a sufficient view of the front.
 
 ## pygame-joystick-test.py
 Taken from [denilsosa]([#thisll-be-a-helpful-section-about-the-greek-letter-Θ](https://github.com/denilsonsa/pygame-joystick-test)), works to see if steamdeck joysticks are being read in by pygame.
